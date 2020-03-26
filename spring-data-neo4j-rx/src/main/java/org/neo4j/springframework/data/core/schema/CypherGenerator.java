@@ -363,7 +363,7 @@ public enum CypherGenerator {
 			Predicate<String> includeField) {
 
 		List<Object> nodePropertiesProjection = new ArrayList<>();
-		for (GraphPropertyDescription property : nodeDescription.getGraphProperties()) {
+		for (GraphPropertyDescription property : nodeDescription.getAllGraphProperties()) {
 			if (!includeField.test(property.getFieldName())) {
 				continue;
 			}
@@ -375,6 +375,9 @@ public enum CypherGenerator {
 				nodePropertiesProjection.add(property.getPropertyName());
 			}
 		}
+
+		nodePropertiesProjection.add(NAME_OF_LABELS);
+		nodePropertiesProjection.add(Functions.labels(Cypher.name(nodeName)));
 
 		return nodePropertiesProjection;
 	}

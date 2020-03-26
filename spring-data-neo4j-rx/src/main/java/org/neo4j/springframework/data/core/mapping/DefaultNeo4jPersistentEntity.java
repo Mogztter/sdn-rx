@@ -32,11 +32,14 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import org.jetbrains.annotations.NotNull;
 import org.neo4j.springframework.data.core.schema.GeneratedValue;
 import org.neo4j.springframework.data.core.schema.GraphPropertyDescription;
 import org.neo4j.springframework.data.core.schema.IdDescription;
 import org.neo4j.springframework.data.core.schema.Node;
+import org.neo4j.springframework.data.core.schema.NodeDescription;
 import org.neo4j.springframework.data.core.schema.Property;
 import org.neo4j.springframework.data.core.schema.Relationship;
 import org.neo4j.springframework.data.core.schema.RelationshipDescription;
@@ -69,6 +72,9 @@ class DefaultNeo4jPersistentEntity<T> extends BasicPersistentEntity<T, Neo4jPers
 
 	private final Lazy<String[]> additionalLabels;
 
+	private final Set<NodeDescription<?>> childNodeDescriptions = new HashSet<>();
+
+	private NodeDescription<?> parentNodeDescription;
 	/**
 	 * A view on all simple properties stored on a node.
 	 */
@@ -198,6 +204,12 @@ class DefaultNeo4jPersistentEntity<T> extends BasicPersistentEntity<T, Neo4jPers
 		}
 	}
 
+	private String[] computeAdditionalLabels() {
+
+		return Stream.concat(Arrays.stream(computeOwnAdditionalLabels()), computeParentLabels().stream())
+			.toArray(String[]::new);
+	}
+
 	/**
 	 * The additional labels will get computed and returned by following rules:<br>
 	 * 1. If there is no {@link Node} annotation, empty {@code String} array.<br>
@@ -205,10 +217,10 @@ class DefaultNeo4jPersistentEntity<T> extends BasicPersistentEntity<T, Neo4jPers
 	 * 3. If only {@link Node#labels()} property is set, use the all but the first one as the additional labels.<br>
 	 * 3. If the {@link Node#primaryLabel()} property is set, use the all but the first one as the additional labels.<br>
 	 *
-	 * @return computed additional labels
+	 * @return computed additional labels of the concrete class
 	 */
-	private String[] computeAdditionalLabels() {
-
+	@NotNull
+	private String[] computeOwnAdditionalLabels() {
 		Node nodeAnnotation = this.findAnnotation(Node.class);
 		if (nodeAnnotation == null || hasEmptyLabelInformation(nodeAnnotation)) {
 			return new String[] {};
@@ -219,7 +231,19 @@ class DefaultNeo4jPersistentEntity<T> extends BasicPersistentEntity<T, Neo4jPers
 		}
 	}
 
-	private boolean hasEmptyLabelInformation(Node nodeAnnotation) {
+	@NotNull
+	private List<String> computeParentLabels() {
+
+		List<String> parentLabels = new ArrayList<>();
+		while (parentNodeDescription != null) {
+			parentLabels.add(parentNodeDescription.getPrimaryLabel());
+			parentLabels.addAll(Arrays.asList(parentNodeDescription.getAdditionalLabels()));
+			parentNodeDescription = ((DefaultNeo4jPersistentEntity<?>) parentNodeDescription).getParentNodeDescription();
+		}
+		return parentLabels;
+	}
+
+	private static boolean hasEmptyLabelInformation(Node nodeAnnotation) {
 		return nodeAnnotation.labels().length < 1 && !hasText(nodeAnnotation.primaryLabel());
 	}
 
@@ -276,4 +300,42 @@ class DefaultNeo4jPersistentEntity<T> extends BasicPersistentEntity<T, Neo4jPers
 		return Collections.unmodifiableCollection(computedGraphProperties);
 	}
 
+	public Collection<GraphPropertyDescription> getAllGraphProperties() {
+		List<GraphPropertyDescription> all = new ArrayList<>();
+		List<String> allNames = new ArrayList<>();
+
+		all.addAll(getGraphProperties());
+		all.stream().map(gp -> gp.getPropertyName()).forEach(allNames::add);
+		for (NodeDescription<?> childNodeDescription : childNodeDescriptions) {
+			Collection<GraphPropertyDescription> childGraphProperties = childNodeDescription.getGraphProperties();
+			for (GraphPropertyDescription childGraphProperty : childGraphProperties) {
+				if (allNames.contains(childGraphProperty.getPropertyName())) {
+					continue;
+				}
+				all.add(childGraphProperty);
+				allNames.add(childGraphProperty.getPropertyName());
+			}
+		}
+
+		return Collections.unmodifiableCollection(all);
+	}
+
+	@Override
+	public void addChildNodeDescription(NodeDescription<?> child) {
+		this.childNodeDescriptions.add(child);
+	}
+
+	@Override
+	public Set<NodeDescription<?>> getChildNodeDescriptions() {
+		return childNodeDescriptions;
+	}
+
+	@Override
+	public void setParentNodeDescription(NodeDescription<?> parent) {
+		this.parentNodeDescription = parent;
+	}
+
+	public NodeDescription<?> getParentNodeDescription() {
+		return parentNodeDescription;
+	}
 }

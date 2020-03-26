@@ -38,6 +38,7 @@ public interface NodeDescription<T> {
 
 	String NAME_OF_ROOT_NODE = "n";
 	String NAME_OF_INTERNAL_ID = "__internalNeo4jId__";
+	String NAME_OF_LABELS = "__nodeLabels__";
 	String NAME_OF_IDS_RESULT = "__ids__";
 	String NAME_OF_ID_PARAM = "__id__";
 	String NAME_OF_VERSION_PARAM = "__version__";
@@ -66,6 +67,11 @@ public interface NodeDescription<T> {
 	Collection<GraphPropertyDescription> getGraphProperties();
 
 	/**
+	 * @return asdfs
+	 */
+	Collection<GraphPropertyDescription> getAllGraphProperties();
+
+	/**
 	 * @return the list of all additional labels (All labels except the {@link NodeDescription#getPrimaryLabel()}.
 	 */
 	String[] getAdditionalLabels();
@@ -92,6 +98,9 @@ public interface NodeDescription<T> {
 	 */
 	Collection<RelationshipDescription> getRelationships();
 
+	void addChildNodeDescription(NodeDescription<?> child);
+	Collection<NodeDescription<?>> getChildNodeDescriptions();
+	void setParentNodeDescription(NodeDescription<?> parent);
 	/**
 	 * @return An expression that represents the right identifier type.
 	 */

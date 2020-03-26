@@ -2312,6 +2312,18 @@ class RepositoryIT {
 		}
 	}
 
+	@Test
+	void findAllWithInheritance(@Autowired BaseClassRepository baseClassRepository) {
+		Inheritance.ConcreteClassA ccA = new Inheritance.ConcreteClassA("test");
+		Inheritance.ConcreteClassB ccB = new Inheritance.ConcreteClassB(42);
+		baseClassRepository.save(ccA);
+		baseClassRepository.save(ccB);
+
+		List<Inheritance.BaseClass> all = baseClassRepository.findAll();
+
+		assertThat(all).containsExactlyInAnyOrder(ccA, ccB);
+	}
+
 	interface BidirectionalStartRepository extends Neo4jRepository<BidirectionalStart, Long> {
 	}
 
@@ -2352,6 +2364,9 @@ class RepositoryIT {
 	}
 
 	interface SimilarThingRepository extends Neo4jRepository<SimilarThing, Long> {
+	}
+
+	interface BaseClassRepository extends Neo4jRepository<Inheritance.BaseClass, Long> {
 	}
 
 	@Configuration

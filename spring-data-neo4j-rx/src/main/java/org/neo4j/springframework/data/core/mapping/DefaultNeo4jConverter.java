@@ -253,27 +253,35 @@ final class DefaultNeo4jConverter implements Neo4jConverter {
 		Neo4jPersistentEntity<ET> nodeDescription,
 		KnownObjects knownObjects) {
 
-		Collection<RelationshipDescription> relationships = nodeDescription.getRelationships();
+		Value labelsValue = queryResult.get(NAME_OF_LABELS);
 
-		ET instance = instantiate(nodeDescription, queryResult, knownObjects, relationships);
+		Neo4jPersistentEntity<ET> concreteNodeDescription = nodeDescription;
+		if (!labelsValue.isNull()) {
+			concreteNodeDescription = (Neo4jPersistentEntity)
+				nodeDescriptionStore.getMostConcreteDescription(nodeDescription, labelsValue.asList(Value::asString));
+		}
 
-		PersistentPropertyAccessor<ET> propertyAccessor = nodeDescription.getPropertyAccessor(instance);
+		Collection<RelationshipDescription> relationships = concreteNodeDescription.getRelationships();
 
-		if (nodeDescription.requiresPropertyPopulation()) {
+		ET instance = instantiate(concreteNodeDescription, queryResult, knownObjects, relationships);
+
+		PersistentPropertyAccessor<ET> propertyAccessor = concreteNodeDescription.getPropertyAccessor(instance);
+
+		if (concreteNodeDescription.requiresPropertyPopulation()) {
 
 			// Fill simple properties
-			Predicate<Neo4jPersistentProperty> isConstructorParameter = nodeDescription
+			Predicate<Neo4jPersistentProperty> isConstructorParameter = concreteNodeDescription
 				.getPersistenceConstructor()::isConstructorParameter;
-			nodeDescription.doWithProperties(populateFrom(queryResult, propertyAccessor, isConstructorParameter));
+			concreteNodeDescription.doWithProperties(populateFrom(queryResult, propertyAccessor, isConstructorParameter));
 
 			// Fill associations
-			nodeDescription.doWithAssociations(
+			concreteNodeDescription.doWithAssociations(
 				populateFrom(queryResult, propertyAccessor, relationships, knownObjects));
 		}
 		return instance;
 	}
 
-	private <ET> ET instantiate(Neo4jPersistentEntity<ET> anotherNodeDescription,
+	private <ET> ET instantiate(Neo4jPersistentEntity<ET> nodeDescription,
 		MapAccessor values,
 		KnownObjects knownObjects,
 		Collection<RelationshipDescription> relationships) {
@@ -282,9 +290,8 @@ final class DefaultNeo4jConverter implements Neo4jConverter {
 			@Override
 			public Object getParameterValue(PreferredConstructor.Parameter parameter) {
 
-				Neo4jPersistentProperty matchingProperty = anotherNodeDescription
+				Neo4jPersistentProperty matchingProperty = nodeDescription
 					.getRequiredPersistentProperty(parameter.getName());
-
 
 				if (matchingProperty.isRelationship()) {
 
@@ -295,8 +302,9 @@ final class DefaultNeo4jConverter implements Neo4jConverter {
 			}
 		};
 
-		return INSTANTIATORS.getInstantiatorFor(anotherNodeDescription)
-			.createInstance(anotherNodeDescription, parameterValueProvider);
+
+		return INSTANTIATORS.getInstantiatorFor(nodeDescription)
+			.createInstance(nodeDescription, parameterValueProvider);
 	}
 
 	private PropertyHandler<Neo4jPersistentProperty> populateFrom(

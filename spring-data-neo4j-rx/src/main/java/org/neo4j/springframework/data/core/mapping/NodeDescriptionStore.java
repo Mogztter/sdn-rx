@@ -18,8 +18,10 @@
  */
 package org.neo4j.springframework.data.core.mapping;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -74,5 +76,16 @@ class NodeDescriptionStore {
 			}
 		}
 		return null;
+	}
+
+	public NodeDescription<?> getMostConcreteDescription(Neo4jPersistentEntity<?> entityDescription, List<String> labels) {
+		for (NodeDescription<?> childNodeDescription : entityDescription.getChildNodeDescriptions()) {
+			if (labels.contains(childNodeDescription.getPrimaryLabel())
+					&& labels.containsAll(Arrays.asList(childNodeDescription.getAdditionalLabels()))) {
+				return childNodeDescription;
+			}
+
+		}
+		return entityDescription;
 	}
 }
